@@ -1,0 +1,16 @@
+#!/bin/sh
+
+#PBS -N CPSC8200-test
+#PBS -l select=2:ncpus=8:mem=30gb:mpiprocs=8:interconnect=hdr
+#PBS -q batch
+#PBS -j oe
+#PBS -o test-$PBS_JOBID.log
+
+cd $PBS_O_WORKDIR
+cat $PBS_NODEFILE
+
+module load courses/cpsc8200
+
+mpirun --mca btl tcp,self  -n 8 ./cartesian
+
+
