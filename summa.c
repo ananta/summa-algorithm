@@ -14,12 +14,12 @@
 #include <stdio.h>
 #include <time.h>	
 #include <stdlib.h>	
+#include <stdbool.h>	
 #include <math.h>	
 #include <string.h>
 #include "mpi.h"
 
 #define min(a, b) ((a < b) ? a : b)
-#define SZ 4000		//Each matrix of entire A, B, and C is SZ by SZ. Set a small value for testing, and set a large value for collecting experimental data.
 
 
 /**
@@ -53,32 +53,66 @@ void initialize(double **lA, double **lB, double **lC, int blck_sz){
 	}
 }
 
-void initialize_test(double **lA, double **lB, double **lC, int block_sz, int coordinates[2]){
-	int i, j, ii, jj;
-	for(ii = 0; ii < block_sz; ii++) {
-		for(jj = 0; jj < block_sz; jj++) {
-			i = ii + block_sz * coordinates[0];
-			j = jj + block_sz * coordinates[1];
+
+void setup_test_matrix(double **A, double **B, double **C, int block_sz, int coordinates[2]){
+	int i, j, _i, _j;
+	for(_i = 0; _i < block_sz; _i++) {
+		for(_j = 0; _j < block_sz; _j++) {
+			i = _i + block_sz * coordinates[0];
+			j = _j + block_sz * coordinates[1];
+
+			if (i == j) {
+				A[_i][_j] = 1.0;
+				B[_i][_j] = 1.0;
+			}else if( (j-1) == i ){
+				B[_i][_j] = 1.0;
+				A[_i][_j] = 0.0;
+			}else if( (i-1)== j ){
+				A[_i][_j] = 1.0;
+				B[_i][_j] = 0.0;
+			}else{
+				A[_i][_j] =0.0;
+				B[_i][_j] =0.0;
+			}
+
+			C[_i][_j] = 0.0;
+		}
+	}
+	//printf("Test matrix setup completed.....\n");
+}
+
+bool execute_checker(double **lA, double **lB, double **lC, int block_sz, int coordinates[2]){
+	bool status = true;
+	int i, j, _i, _j;
+	for(_i = 0; _i < block_sz; _i++) {
+		for(_j = 0; _j < block_sz; _j++) {
+			i = _i + block_sz * coordinates[0];
+			j = _j + block_sz * coordinates[1];
 			if (i == 0 && j==0 ) {	
-				if (lC[ii][jj]!=1) {
-					printf("C[%d][%d] is incorrect\n", ii,jj);
+				if (lC[_i][_j]!=1) {
+					status = false;
+					printf("ERROR: C[%d][%d] \n", _i,_j);
 				}
 			}else if(i == j){
-				if (lC[ii][jj]!=2) {
-					printf("C[%d][%d] is incorrect\n", ii,jj);
+				if (lC[_i][_j]!=2) {
+					status = false;
+					printf("ERROR: C[%d][%d] \n", _i,_j);
 				}
 			}else if( (i-1) == j){
-				if (lC[ii][jj]!=1) {
-					printf("C[%d][%d] is incorrect\n", ii,jj);
+				if (lC[_i][_j]!=1) {
+					status = false;
+					printf("ERROR: C[%d][%d] \n", _i,_j);
 				}
 			}else if(i == (j-1) ){
-				if (lC[ii][jj]!=1) {
-					printf("C[%d][%d] is incorrect\n", ii,jj);
+				if (lC[_i][_j]!=1) {
+					status = false;
+					printf("ERROR: C[%d][%d] \n", _i,_j);
 				}
 			}	
 		}
 	}
-	printf("Test pass\n");
+	return status;
+	//printf("Test completed.....\n");
 }
 
 
@@ -156,6 +190,18 @@ int main(int argc, char *argv[]) {
 	double start_time, end_time, total_time;	// for timing
 	int block_sz;								// Block size length for each processor to handle
 	int proc_grid_sz;							// 'q' from the slides
+	// Change the seed to increase the randomness of rand() function
+	srand(time(NULL));
+
+	int SZ = 0; // setup the cli argument for SZ
+
+	if(argc == 2){
+		// get the cli argument and add it to SZ
+		SZ = atoi(argv[1]);
+	}else{
+		// default to 4000
+		SZ = 4000; 
+	}
 
 	int wrap[2];
 	int coordinates[2];
@@ -203,7 +249,7 @@ int main(int argc, char *argv[]) {
 
 	// 2) Let's setup a communicator between these processes 
 
-	printf("Initializing communicator \n");
+	//printf("Initializing communicator \n");
 	// initialize a new communicator to store our communicator
 	MPI_Comm grid_comm;
 	// create a new handle to a new communicator and store it on our  grid_comm object
@@ -230,6 +276,8 @@ int main(int argc, char *argv[]) {
 
 
 	initialize(A, B, C, block_sz);
+	// setup matrix for testing
+	//setup_test_matrix(A, B, C, block_sz, coordinates);
 
 
 	//printf("STARTING SUMMA.......\n");
@@ -249,10 +297,11 @@ int main(int argc, char *argv[]) {
 	// Obtain the elapsed time and assign it to total_time
 	total_time = end_time - start_time;
 
-	printf("TOTAL TIME: %f ms \n",total_time);
+	//printf("TOTAL TIME: %f ms \n",total_time);
 
 	// Insert statements for testing
-	//initialize_test(A, B, C, block_sz, coordinates);
+	//bool result = execute_checker(A, B, C, block_sz, coordinates);
+
 
 	if (rank == 0){
 		// Print in pseudo csv format for easier results compilation
